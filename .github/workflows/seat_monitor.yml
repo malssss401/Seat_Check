@@ -26,4 +26,4 @@ jobs:
         env:
           PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
           PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
-        run: python seat_check.py
+        run: python test_notification.py
