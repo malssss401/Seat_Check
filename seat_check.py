@@ -1,15 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
 import os
-import json
-from pathlib import Path
 
 URL = "https://www.icaionlineregistration.org/launchbatchdetail.aspx"
 
 PUSHOVER_USER = os.environ["PUSHOVER_USER"]
 PUSHOVER_TOKEN = os.environ["PUSHOVER_TOKEN"]
-
-STATE_FILE = "seat_state.json"
 
 
 def send_notification(message):
@@ -23,57 +19,50 @@ def send_notification(message):
     )
 
 
-def load_previous_state():
-    if Path(STATE_FILE).exists():
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    return {"alert_sent": False}
+session = requests.Session()
 
+headers = {
+    "User-Agent": "Mozilla/5.0"
+}
 
-def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
+# Step 1: load page
+response = session.get(URL, headers=headers)
 
+soup = BeautifulSoup(response.text, "html.parser")
 
-def check_seats():
+# Extract ASP.NET hidden fields
+viewstate = soup.find("input", {"name": "__VIEWSTATE"})["value"]
+eventvalidation = soup.find("input", {"name": "__EVENTVALIDATION"})["value"]
+viewstategen = soup.find("input", {"name": "__VIEWSTATEGENERATOR"})["value"]
 
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(URL, headers=headers)
+# Step 2: simulate dropdown selection
+payload = {
+    "__VIEWSTATE": viewstate,
+    "__VIEWSTATEGENERATOR": viewstategen,
+    "__EVENTVALIDATION": eventvalidation,
+    "ddlRegion": "Southern",
+    "ddlPOU": "Chennai",
+    "ddlCourse": "AICITSS - Advanced Information Technology",
+    "btnSearch": "Search"
+}
 
-    soup = BeautifulSoup(response.text, "html.parser")
+response = session.post(URL, data=payload, headers=headers)
 
-    rows = soup.find_all("tr")
+soup = BeautifulSoup(response.text, "html.parser")
 
-    seats_found = 0
+rows = soup.find_all("tr")
 
-    for row in rows:
-        cols = [c.text.strip() for c in row.find_all("td")]
+seats_found = 0
 
-        for col in cols:
-            if col.isdigit():
-                seats = int(col)
-                seats_found = max(seats_found, seats)
+for row in rows:
+    cols = [c.text.strip() for c in row.find_all("td")]
 
-    return seats_found
+    for col in cols:
+        if col.isdigit():
+            seats = int(col)
+            seats_found = max(seats_found, seats)
 
+print("Seats detected:", seats_found)
 
-if __name__ == "__main__":
-
-    state = load_previous_state()
-    seats = check_seats()
-
-    print(f"Seats detected: {seats}")
-
-    if seats > 0 and not state["alert_sent"]:
-        send_notification(f"🚨 ICAI seats available! {seats} seats open.")
-        state["alert_sent"] = True
-        save_state(state)
-        print("Notification sent.")
-
-    elif seats == 0:
-        state["alert_sent"] = False
-        save_state(state)
-        print("No seats available.")
-
-    else:
-        print("Seats already notified earlier.")
+if seats_found > 0:
+    send_notification(f"🚨 ICAI Seats Available! {seats_found} seats open.")
