@@ -1,9 +1,9 @@
 name: ICAI Seat Monitor
 
 on:
-  schedule:
+  #schedule:
     # Runs at the start of every hour
-    - cron: "0 * * * *"
+    #- cron: "0 * * * *"
   workflow_dispatch: # Manual trigger
 
 jobs:
